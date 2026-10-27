@@ -1,0 +1,85 @@
+name: Build Recovery X6882
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Target build (vendorbootimage / bootimage / recoveryimage)"
+        required: true
+        default: "vendorbootimage"
+
+env:
+  DT_REPO: https://github.com/jvaswb/twrp-device_infinix_Infinix-X6882
+  DT_BRANCH: fox_12.1
+  DT_PATH: device/infinix/Infinix-X6882
+  MANIFEST: https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git
+  MANIFEST_BRANCH: twrp-12.1
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 300
+    steps:
+      - name: Bebaskan disk
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: false
+          swap-storage: true
+
+      - name: Install dependensi
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git-core gnupg flex bison build-essential zip curl \
+            zlib1g-dev libc6-dev-i386 libncurses5 x11proto-core-dev libx11-dev \
+            libgl1-mesa-dev libxml2-utils xsltproc unzip fontconfig python3 \
+            ccache bc lz4 rsync
+          mkdir -p ~/bin
+          curl -s https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
+          chmod +x ~/bin/repo
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+
+      - name: Sync source code
+        run: |
+          git config --global user.name "builder"
+          git config --global user.email "builder@example.com"
+          mkdir -p ~/twrp && cd ~/twrp
+          repo init --depth=1 -u "$MANIFEST" -b "$MANIFEST_BRANCH"
+          repo sync -c -j4 --force-sync --no-clone-bundle --no-tags
+
+      - name: Clone device tree
+        run: |
+          cd ~/twrp
+          git clone --depth=1 -b "$DT_BRANCH" "$DT_REPO" "$DT_PATH"
+          ls "$DT_PATH"
+
+      - name: Build
+        run: |
+          cd ~/twrp
+          set +e
+          source build/envsetup.sh
+          echo "== isi device/transsion =="
+          ls device/transsion/ || true
+
+          PRODUCT=$(ls "$DT_PATH"/*.mk | xargs -n1 basename | sed 's/\.mk$//' \
+            | grep -E '^(twrp|omni|lineage|aosp)_' | head -1)
+          echo "Product terdeteksi: $PRODUCT"
+
+          export ALLOW_MISSING_DEPENDENCIES=true
+          lunch "${PRODUCT}-eng"
+          [ -n "$TARGET_PRODUCT" ] || { echo "lunch gagal"; exit 1; }
+
+          mka ${{ github.event.inputs.target }} -j$(nproc)
+
+      - name: Upload hasil
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: recovery-X6882
+          path: |
+            ~/twrp/out/target/product/*/*.img
+            ~/twrp/out/target/product/*/*.zip
+          if-no-files-found: warn
