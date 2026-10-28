@@ -10,7 +10,7 @@ on:
 
 env:
   DT_REPO: https://github.com/jvaswb/twrp-device_infinix_Infinix-X6882
-  DT_BRANCH: fox_12.1
+  DT_BRANCH: stag
   DT_PATH: device/infinix/Infinix-X6882
   MANIFEST: https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git
   MANIFEST_BRANCH: twrp-12.1
